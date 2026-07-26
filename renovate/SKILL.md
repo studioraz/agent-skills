@@ -161,7 +161,36 @@ Do not skip the grouping step just because the matched packages belong to `amast
 
 ---
 
-## 6) Hyvä compat grouping rules
+## 6) Tightly-coupled Mirasvit package groups
+
+Some Mirasvit packages have hard Composer version constraints on each other and **must be updated in the same PR**. Renovate's partial updates break Composer's lock-file resolution for these packages.
+
+### Known tightly-coupled group
+
+The following packages form one tightly-coupled set and must always be grouped together when any of them are present in `composer.json`:
+
+- `mirasvit/module-tm`
+- `mirasvit/module-fb-marketing`
+- `mirasvit/module-fb-marketing-hyva`
+- `mirasvit/module-gtm`
+- `mirasvit/module-gtm-hyva`
+
+### Rule
+
+When **two or more** packages from this set exist in `composer.json`:
+
+1. Collect all present members of the set.
+2. Generate a single `packageRules` entry with:
+   - `matchPackageNames`: list of all present members
+   - `groupName`: `"Mirasvit TM / FB Marketing / GTM"`
+   - `description`: `"Group interdependent Mirasvit TM/FB Marketing/GTM packages together"`
+3. **Do not** generate separate, narrower Hyvä compat grouping rules (see section 6b) for any package that is already covered by this broader group. This avoids duplicate or conflicting `groupName` values for the same packages.
+
+If only one member of the set is present, no group rule is needed (a single-package group has no effect).
+
+---
+
+## 6b) Hyvä compat grouping rules
 
 Detect all Hyvä compatibility modules and group each compat module with its corresponding base module.
 
@@ -227,6 +256,7 @@ Grouping related packages via `groupName` is a supported Renovate pattern.
 - the Hyvä package exists without its base package
 - the base package exists without a compat package
 - the pairing is ambiguous and no explicit mapping rule exists
+- both packages in the pair are already covered by the tightly-coupled Mirasvit group (section 6)
 
 ---
 
@@ -300,22 +330,23 @@ Use patterns like:
 
 1. Read `composer.json`
 2. Extract all packages from `require`
-3. Find all package names ending in `-hyva`
-4. For each `-hyva` package, derive the base package by removing `-hyva`
-5. Find explicit Hyvä mapping matches for packages like `hyva-themes/magento2-smile-elasticsuite` and `hyva-themes/magento2-mageworx-giftcards`
-6. If the mapped base package exists, generate a grouping rule
-7. Inspect `repositories` in `composer.json`
-8. Inspect `http-basic` in `auth.json`
-9. Add only project-specific `hostRules`, including Amasty credentials when present in `auth.json`
-10. Omit Magento and Studio Raz org-level credentials
-11. Omit Mirasvit `hostRules` when credentials are already embedded directly in the repository URL
-12. Normalize `composer.json` `config.platform.php` to `8.3.0` (add it if missing, update it if different, preserve existing `composer.json` structure)
-13. Add ignore rules for:
+3. **Check for tightly-coupled Mirasvit packages** (section 6): if two or more of `mirasvit/module-tm`, `mirasvit/module-fb-marketing`, `mirasvit/module-fb-marketing-hyva`, `mirasvit/module-gtm`, `mirasvit/module-gtm-hyva` are present, generate the single broader group rule and note which packages are now covered
+4. Find all package names ending in `-hyva`
+5. For each `-hyva` package, derive the base package by removing `-hyva`
+6. Find explicit Hyvä mapping matches for packages like `hyva-themes/magento2-smile-elasticsuite` and `hyva-themes/magento2-mageworx-giftcards`
+7. If the mapped base package exists, generate a grouping rule — **skip if both packages are already in the tightly-coupled Mirasvit group**
+8. Inspect `repositories` in `composer.json`
+9. Inspect `http-basic` in `auth.json`
+10. Add only project-specific `hostRules`, including Amasty credentials when present in `auth.json`
+11. Omit Magento and Studio Raz org-level credentials
+12. Omit Mirasvit `hostRules` when credentials are already embedded directly in the repository URL
+13. Normalize `composer.json` `config.platform.php` to `8.3.0` (add it if missing, update it if different, preserve existing `composer.json` structure)
+14. Add ignore rules for:
    - Magento/core packages
    - `require-dev`
    - `amasty/*`
-14. Still generate confirmed base + Hyvä grouping rules even for Amasty package pairs
-15. Output final valid `renovate.json`
+15. Still generate confirmed base + Hyvä grouping rules even for Amasty package pairs
+16. Output final valid `renovate.json`
 
 ---
 
@@ -379,6 +410,8 @@ Before returning the file, verify:
 - all discovered base/Hyvä pairs are grouped
 - explicit mappings for known Hyvä packages were applied
 - Amasty base + Hyvä pairs are still grouped when both packages exist
+- tightly-coupled Mirasvit packages (TM / FB Marketing / GTM) are grouped together when two or more are present
+- no separate narrower Hyvä compat rules exist for packages already covered by the broader Mirasvit TM/FB Marketing/GTM group
 - config is limited to `composer.json`
 - Composer manager is enabled
 
